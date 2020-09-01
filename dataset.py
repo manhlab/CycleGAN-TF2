@@ -2,10 +2,19 @@ import re
 import numpy as np
 
 import tensorflow as tf
-from tensorflow import keras
-from tensorflow.keras import layers
-import tensorflow_addons as tfa
 
+
+try:
+    tpu = tf.distribute.cluster_resolver.TPUClusterResolver()
+    print("Device:", tpu.master())
+    tf.config.experimental_connect_to_cluster(tpu)
+    tf.tpu.experimental.initialize_tpu_system(tpu)
+    strategy = tf.distribute.experimental.TPUStrategy(tpu)
+except:
+        strategy = tf.distribute.get_strategy()
+print("Number of replicas:", strategy.num_replicas_in_sync)
+
+AUTO = tf.data.experimental.AUTOTUNE
 
 def count_data_items(filenames):
     n = [
@@ -15,7 +24,7 @@ def count_data_items(filenames):
     return np.sum(n)
 
 
-def decode_image(image, IMAGE_SIZE=256):
+def decode_image(image, IMAGE_SIZE=[256, 256]):
     image = tf.image.decode_jpeg(image, channels=3)
     image = (tf.cast(image, tf.float32) / 127.5) - 1
     image = tf.reshape(image, [*IMAGE_SIZE, 3])
@@ -72,8 +81,7 @@ def get_gan_dataset(
     augment=None,
     repeat=True,
     shuffle=True,
-    batch_size=1,
-    AUTO=None,
+    batch_size=1
 ):
 
     monet_ds = load_dataset(monet_files)

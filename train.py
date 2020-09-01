@@ -1,21 +1,35 @@
 import tensorflow as tf
-from tensorflow import keras
-from tensorflow.keras import layers
-import tensorflow_addons as tfa
-
-import matplotlib.pyplot as plt
-import numpy as np
 from dataset import get_gan_dataset, count_data_items, data_augment
 from cycleGAN import CycleGan, Discriminator, Generator
+from glob import glob
+import argparse
+parser = argparse.ArgumentParser(description='')
+parser.add_argument('--dataset_dir', dest='dataset_dir', default='horse2zebra', help='path of the dataset')
+parser.add_argument('--epoch', dest='epoch', type=int, default=200, help='# of epoch')
+parser.add_argument('--batch_size', dest='batch_size', type=int, default=1, help='# images in batch')
+parser.add_argument('--lr', dest='lr', type=float, default=0.0002, help='initial learning rate for adam')
+args = parser.parse_args()
+
 
 
 def main():
+    try:
+        tpu = tf.distribute.cluster_resolver.TPUClusterResolver()
+        print("Device:", tpu.master())
+        tf.config.experimental_connect_to_cluster(tpu)
+        tf.tpu.experimental.initialize_tpu_system(tpu)
+        strategy = tf.distribute.experimental.TPUStrategy(tpu)
+    except:
+        strategy = tf.distribute.get_strategy()
+    print("Number of replicas:", strategy.num_replicas_in_sync)
+
+    AUTO = tf.data.experimental.AUTOTUNE
+    print(tf.__version__)
     BATCH_SIZE = 8
     EPOCHS_NUM = 30
-    IMAGE_SIZE = [256, 256]
-    GCS_PATH = "gs://kds-c6e2e0c8ff2617fb6bed092481b16f4d3a0ffad21ffdfc8705a19d23"
-    MONET_FILENAMES = tf.io.gfile.glob(str(GCS_PATH + "/monet_tfrec/*.tfrec"))
-    PHOTO_FILENAMES = tf.io.gfile.glob(str(GCS_PATH + "/photo_tfrec/*.tfrec"))
+    GCS_PATH = "/home/redbox/code/cycleGAN-TF2/data/monet"
+    MONET_FILENAMES = glob(GCS_PATH + "/monet_jpg/*.jpg")
+    PHOTO_FILENAMES = glob(GCS_PATH + "/photo_jpg/*.jpg")
 
     n_monet_samples = count_data_items(MONET_FILENAMES)
     n_photo_samples = count_data_items(PHOTO_FILENAMES)
@@ -33,8 +47,7 @@ def main():
         augment=None,
         repeat=True,
         shuffle=True,
-        batch_size=BATCH_SIZE,
-        AUTO=AUTO,
+        batch_size=BATCH_SIZE
     )
 
     with strategy.scope():
@@ -116,16 +129,5 @@ def main():
 
 
 if __name__ == "__main__":
-    try:
-        tpu = tf.distribute.cluster_resolver.TPUClusterResolver()
-        print("Device:", tpu.master())
-        tf.config.experimental_connect_to_cluster(tpu)
-        tf.tpu.experimental.initialize_tpu_system(tpu)
-        strategy = tf.distribute.experimental.TPUStrategy(tpu)
-    except:
-        strategy = tf.distribute.get_strategy()
-    print("Number of replicas:", strategy.num_replicas_in_sync)
 
-    AUTO = tf.data.experimental.AUTOTUNE
-    print(tf.__version__)
     main()
